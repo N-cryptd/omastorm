@@ -137,8 +137,13 @@ Item {
     // Where the weak-return floor cuts the legend strip, as a fraction of its
     // width: the bands are equal columns, so the floor interpolates inside
     // the band it falls in. 0 when the floor is off, under the scale, or not
-    // in force because the frame carries no scale (an older engine).
-    readonly property bool floorActive: !!scan && weakFloor !== null && scan.scale > 0
+    // in force because the frame carries no encoding (an older engine).
+    // In force when the frame carries an encoding the floor can be placed
+    // with: polar scale/offset, or an OPERA mosaic's nested measuredCode
+    // (docs/protocol.md) — mosaics without measured codes stay whole.
+    readonly property bool floorActive: !!scan && weakFloor !== null
+        && (scan.scale > 0
+            || (scan.kind === "mosaic" && !!scan.measuredCode && scan.measuredCode.scale > 0))
     readonly property real floorFraction: {
         if (!floorActive || weakFloor <= scan.bounds[0]) return 0;
         for (var i = 0; i < bands; i++)

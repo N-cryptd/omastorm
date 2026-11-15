@@ -159,14 +159,15 @@ It is small (a few KB) so clients replace rather than merge.
   value = (code − offset) / scale in `units`. The UI uses them to place the
   weak-return floor, a view setting in `units`, in code units for the shader
   (lookup rule, below). Both are 0 on the loading placeholder, which
-  therefore has no floor. Mosaic frames omit them; the weak-return floor is
-  disabled on the grid path.
+  therefore has no floor. Mosaic frames omit them.
 - Mosaic `frame.measuredCode` is optional: `{"scale":…,"offset":…}` for the
   measured code the mosaic texture keeps in B, with
   value = (code − offset) / scale in `units`. Completed OPERA frames carry
   `{"scale":2,"offset":66}`; loading placeholders and other mosaics omit it.
   It is its own key, not top-level `scale` / `offset`, because clients take
-  those as the weak-return floor being in force. The UI does not read it yet.
+  those as the weak-return floor being in force. The UI reads it to place
+  the weak-return floor on the grid path, the same lookup rule as polar;
+  mosaics without it (MRMS, an older engine) keep the floor off.
 
 `error` answers one command from one client. It goes only to the client that
 sent the command, `state` does not change, and nothing is broadcast, so a
@@ -393,8 +394,10 @@ the row, and the sweep is sampled at `(gate + 0.5) / gates, (row + 0.5) / rays`.
 `rays`, `gates`, `firstGateM`, `gateSpacingM`, and `elevationDeg` travel as
 shader uniforms; they are geometry, not radar values.
 The weak-return floor is the one view setting the shader applies to values: `weakBelow`, a code threshold the UI
-derives from `frame.scale` and `frame.offset` for the floor in `units`
-(`ceil(floor × scale + offset)`), and a measured code (2 and up) below it
+derives from the frame's encoding for the floor in `units`
+(`ceil(floor × scale + offset)`) — polar `frame.scale`/`frame.offset`, or a
+mosaic's nested `measuredCode` under the same `(code − offset) / scale` rule —
+and a measured code (2 and up) below it
 draws nothing, exactly as a blank cell does; 0 is no floor. Folded and
 below-threshold codes are never weak, and the legend names the hidden range.
 

@@ -38,10 +38,10 @@ Item {
     property string treatment: "GLYPHS"
     // The weak-return floor in dBZ, or null to draw every measured return
     // (DESIGN.md, weak-return floor). The shader compares raw moment codes,
-    // so the frame's scale and offset place the floor in code units; a frame
-    // without them (the loading placeholder) has no floor.
+    // so weakBelowFor() places the floor in code units from the frame's
+    // encoding; a frame without one (the loading placeholder, mosaics that
+    // publish no measured codes) has no floor.
     property var weakFloor: null
-    readonly property int weakBelow: scan && weakFloor !== null && scan.scale > 0 ? Math.max(0, Math.min(256, Math.ceil(weakFloor * scan.scale + scan.offset))) : 0
     property int labelSize: 12
     // Multiplies the overlay chrome (label chips, markers, the site tag and
     // their spacing) beside labelSize; the popover passes popover_scale.
@@ -692,8 +692,24 @@ Item {
     readonly property var renderScan: radarReady ? frontBuffer.snapshot.scan : null
     readonly property bool renderMosaic: !!renderScan && renderScan.kind === "mosaic"
     readonly property int renderBands: renderScan ? renderScan.palette.length : 0
-    readonly property int renderWeakBelow: renderScan && weakFloor !== null && renderScan.scale > 0
-        ? Math.max(0, Math.min(256, Math.ceil(weakFloor * renderScan.scale + renderScan.offset))) : 0
+    // The weak-return floor in a frame's raw code units, for the shader's
+    // lookup rule (docs/protocol.md): the frame's encoding maps
+    // value = (code − offset) / scale, so the floor in units lands on
+    // ceil(floor × scale + offset), clamped into the texture channel's
+    // 0..255 range like the polar path has always done. Polar frames carry
+    // scale/offset at the top level; OPERA mosaics keep the same encoding
+    // nested as measuredCode — top-level scale would tell older clients the
+    // floor is in force while their grid shader still drew every return.
+    // A frame without an encoding (the loading placeholder, mosaics that
+    // publish no measured codes, an older engine) has no floor: 0 draws
+    // everything, and the shader never matches B = 0 cells.
+    function weakBelowFor(frame, floor) {
+        if (!frame || floor === null) return 0;
+        var encoding = frame.kind === "mosaic" ? frame.measuredCode : frame;
+        if (!encoding || !(encoding.scale > 0)) return 0;
+        return Math.max(0, Math.min(256, Math.ceil(floor * encoding.scale + encoding.offset)));
+    }
+    readonly property int renderWeakBelow: weakBelowFor(renderScan, weakFloor)
     property real sweepOpacity: radarReady ? radarOpacity : 0
     Behavior on sweepOpacity { NumberAnimation { duration: 160; easing.type: Easing.OutCubic } }
     onTextureChanged: Qt.callLater(stageSweep)
@@ -848,7 +864,10 @@ Item {
         property var swatches: paletteTexture
         property int bands: map.renderBands
         property int treatment: map.treatment === "PIXELS" ? 0 : map.treatment === "GLYPHS" ? 1 : 2
-        property int weakBelow: 0
+        // The weak-return floor in the frame's code units (weakBelowFor);
+        // the shader drops measured codes 2..weakBelow-1, and B = 0 cells
+        // never match, so frames without an encoding draw every return.
+        property int weakBelow: map.renderWeakBelow
         property vector2d viewport: Qt.vector2d(width, height)
         property vector2d viewCenter: Qt.vector2d(map.viewCenterX, map.viewCenterY)
         property real unitsPerPixel: map.unitsPerPixel
